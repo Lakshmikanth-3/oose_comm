@@ -1,4 +1,10 @@
 const API_BASE = '/api';
+let calendarState = {
+    monthOffset: 0,
+    selectedTool: null,
+    tool: null,
+    usageHistory: []
+};
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -48,6 +54,7 @@ async function loadInventory() {
                 <td>${tool.location}</td>
                 <td>
                     <button onclick="editTool(${tool.tool_id})" class="btn btn-primary btn-small">Edit</button>
+                    <button onclick="deleteTool('${tool.tool_id}')" class="btn btn-danger btn-small">Delete</button>
                 </td>
             </tr>
         `).join('');
@@ -112,6 +119,33 @@ async function editTool(toolId) {
     }
 }
 
+async function deleteTool(toolId) {
+    const confirmed = confirm('Delete this tool from inventory? It will be hidden from the app but its history will stay saved.');
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/tools/${toolId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            alert('Tool removed from inventory');
+            loadInventory();
+            loadToolSelect();
+            loadRatingToolSelect();
+            loadTracking();
+        } else {
+            const data = await response.json().catch(() => ({}));
+            alert(data.error || 'Error deleting tool');
+        }
+    } catch (error) {
+        console.error('Error deleting tool:', error);
+        alert('Error deleting tool');
+    }
+}
+
 // ============ AVAILABILITY CALENDAR ============
 async function loadToolSelect() {
     try {
@@ -140,6 +174,10 @@ async function updateCalendar() {
     if (!toolId) {
         document.getElementById('calendarContainer').innerHTML = '<div class="calendar-placeholder">Select a tool to view availability</div>';
         document.getElementById('usageList').innerHTML = '';
+        calendarState.selectedTool = null;
+        calendarState.tool = null;
+        calendarState.usageHistory = [];
+        calendarState.monthOffset = 0;
         return;
     }
 
@@ -149,33 +187,141 @@ async function updateCalendar() {
         const tool = data.tool;
         const usages = data.usage_history;
 
-        // Create simple availability display
-        const calendarHtml = `
-            <div style="padding: 1rem;">
-                <h3>${tool.name}</h3>
-                <p><strong>Available Quantity:</strong> ${tool.quantity_available}</p>
-                <p><strong>Location:</strong> ${tool.location}</p>
-                <p><strong>Category:</strong> ${tool.category}</p>
-                <p><strong>Description:</strong> ${tool.description || 'N/A'}</p>
-            </div>
-        `;
-        document.getElementById('calendarContainer').innerHTML = calendarHtml;
+        calendarState.selectedTool = toolId;
+        calendarState.tool = tool;
+        calendarState.usageHistory = usages;
+        calendarState.monthOffset = 0;
 
-        // Display usage history
-        const usageHtml = usages.map(usage => `
-            <div class="usage-item">
-                <div>
-                    <strong>Date:</strong> ${usage.borrow_date} to ${usage.expected_return_date || 'Not set'}
-                    <br><strong>Status:</strong> ${usage.status}
-                </div>
-                <span class="usage-status status-${usage.status}">${usage.status.toUpperCase()}</span>
-            </div>
-        `).join('');
-        document.getElementById('usageList').innerHTML = usageHtml || '<div class="calendar-placeholder">No usage history</div>';
+        renderCalendar();
+        renderUsageHistory();
     } catch (error) {
         console.error('Error loading calendar:', error);
         document.getElementById('calendarContainer').innerHTML = '<div class="calendar-placeholder">Error loading availability data</div>';
     }
+}
+
+function changeCalendarMonth(direction) {
+    calendarState.monthOffset += direction;
+    renderCalendar();
+}
+
+function renderCalendar() {
+    if (!calendarState.tool) {
+        return;
+    }
+
+    const today = new Date();
+    const targetDate = new Date(today.getFullYear(), today.getMonth() + calendarState.monthOffset, 1);
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const calendarStart = new Date(firstDay);
+    calendarStart.setDate(firstDay.getDate() - firstDay.getDay());
+
+    const monthName = targetDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const usageRanges = calendarState.usageHistory.map(usage => {
+        const borrowDate = parseDateOnly(usage.borrow_date);
+        const returnDate = parseDateOnly(usage.return_date || usage.expected_return_date || usage.borrow_date);
+        return {
+            start: borrowDate,
+            end: returnDate,
+            status: usage.status
+        };
+    });
+
+    const weeks = [];
+    let currentCell = new Date(calendarStart);
+
+    for (let week = 0; week < 6; week += 1) {
+        const days = [];
+        for (let day = 0; day < 7; day += 1) {
+            const cellDate = new Date(currentCell);
+            const inCurrentMonth = cellDate.getMonth() === month;
+            const isToday = isSameDate(cellDate, today);
+            const activeUsage = usageRanges.find(range => isDateInRange(cellDate, range.start, range.end));
+
+            days.push(`
+                <div class="calendar-day ${inCurrentMonth ? '' : 'calendar-day-muted'} ${isToday ? 'calendar-day-today' : ''} ${activeUsage ? `calendar-day-${activeUsage.status}` : ''}">
+                    <div class="calendar-day-number">${cellDate.getDate()}</div>
+                    <div class="calendar-day-state">
+                        ${activeUsage ? activeUsage.status.toUpperCase() : (inCurrentMonth ? 'Available' : '&nbsp;')}
+                    </div>
+                </div>
+            `);
+            currentCell.setDate(currentCell.getDate() + 1);
+        }
+        weeks.push(`<div class="calendar-week">${days.join('')}</div>`);
+    }
+
+    document.getElementById('calendarContainer').innerHTML = `
+        <div class="calendar-header-card">
+            <div>
+                <h3>${calendarState.tool.name}</h3>
+                <p>${calendarState.tool.category} • ${calendarState.tool.location}</p>
+            </div>
+            <div class="calendar-tool-meta">
+                <span class="status-badge ${calendarState.tool.quantity_available > 0 ? 'badge-available' : 'badge-unavailable'}">
+                    ${calendarState.tool.quantity_available} Available
+                </span>
+            </div>
+        </div>
+        <div class="calendar-month-bar">
+            <button class="btn btn-primary btn-small" onclick="changeCalendarMonth(-1)">&larr; Prev</button>
+            <div class="calendar-month-title">${monthName}</div>
+            <button class="btn btn-primary btn-small" onclick="changeCalendarMonth(1)">Next &rarr;</button>
+        </div>
+        <div class="calendar-grid">
+            ${dayLabels.map(day => `<div class="calendar-dow">${day}</div>`).join('')}
+            ${weeks.join('')}
+        </div>
+        <div class="calendar-legend">
+            <span><i class="legend-box legend-available"></i>Available</span>
+            <span><i class="legend-box legend-borrowed"></i>Borrowed</span>
+            <span><i class="legend-box legend-returned"></i>Returned</span>
+            <span><i class="legend-box legend-today"></i>Today</span>
+        </div>
+    `;
+}
+
+function renderUsageHistory() {
+    const usageHtml = calendarState.usageHistory.map(usage => `
+        <div class="usage-item">
+            <div>
+                <strong>Date:</strong> ${usage.borrow_date} to ${usage.expected_return_date || 'Not set'}
+                <br><strong>Status:</strong> ${usage.status}
+            </div>
+            <span class="usage-status status-${usage.status}">${usage.status.toUpperCase()}</span>
+        </div>
+    `).join('');
+
+    document.getElementById('usageList').innerHTML = usageHtml || '<div class="calendar-placeholder">No usage history</div>';
+}
+
+function parseDateOnly(dateValue) {
+    if (!dateValue) {
+        return null;
+    }
+
+    const date = new Date(dateValue);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function isSameDate(left, right) {
+    return left.getFullYear() === right.getFullYear()
+        && left.getMonth() === right.getMonth()
+        && left.getDate() === right.getDate();
+}
+
+function isDateInRange(date, start, end) {
+    if (!start || !end) {
+        return false;
+    }
+
+    const current = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return current >= start && current <= end;
 }
 
 // ============ TRACKING SECTION ============

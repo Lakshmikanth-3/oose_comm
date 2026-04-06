@@ -1,23 +1,17 @@
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const fs = require('fs');
 
 const dbPath = path.join(__dirname, 'community_tools.db');
 
-console.log('Starting database setup...\n');
+async function setupDatabase() {
+    console.log('Starting database setup...\n');
 
-try {
-    // Delete existing database if it exists
-    if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath);
-        console.log('✓ Removed existing database');
-    }
-
+    try {
     // Create new database
-    const db = new Database(dbPath);
-    db.pragma('foreign_keys = ON');
+    const db = new sqlite3.Database(dbPath);
+    db.run('PRAGMA foreign_keys = ON');
 
-    console.log('✓ Created new SQLite database\n');
+    console.log('✓ Opened SQLite database\n');
 
     // Create tables
     const createTablesSQL = `
@@ -55,27 +49,81 @@ try {
         );
     `;
 
+    const run = (sql, params = []) => new Promise((resolve, reject) => {
+        db.run(sql, params, function callback(error) {
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve({ lastID: this.lastID, changes: this.changes });
+        });
+    });
+
+    const exec = sql => new Promise((resolve, reject) => {
+        db.exec(sql, error => {
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve();
+        });
+    });
+
+    const get = sql => new Promise((resolve, reject) => {
+        db.get(sql, (error, row) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve(row);
+        });
+    });
+
     const statements = createTablesSQL.split(';').filter(s => s.trim());
     for (const stmt of statements) {
-        db.exec(stmt);
+        await exec(stmt);
     }
 
-    console.log('✓ Created tables: users, tools, usage\n');
+    console.log('✓ Ensured tables: users, tools, usage\n');
 
-    // Insert sample data
-    db.prepare('INSERT INTO users (name, email, phone) VALUES (?, ?, ?)').run('John Doe', 'john@example.com', '555-0001');
-    db.prepare('INSERT INTO users (name, email, phone) VALUES (?, ?, ?)').run('Jane Smith', 'jane@example.com', '555-0002');
-    db.prepare('INSERT INTO users (name, email, phone) VALUES (?, ?, ?)').run('Bob Johnson', 'bob@example.com', '555-0003');
+    // Insert sample data only when tables are empty
+    const userCount = await get('SELECT COUNT(*) as count FROM users');
+    if (userCount.count === 0) {
+        await run('INSERT INTO users (name, email, phone) VALUES (?, ?, ?)', ['John Doe', 'john@example.com', '555-0001']);
+        await run('INSERT INTO users (name, email, phone) VALUES (?, ?, ?)', ['Jane Smith', 'jane@example.com', '555-0002']);
+        await run('INSERT INTO users (name, email, phone) VALUES (?, ?, ?)', ['Bob Johnson', 'bob@example.com', '555-0003']);
+        console.log('✓ Added 3 sample users');
+    } else {
+        console.log('✓ Users already exist, skipped sample users');
+    }
 
-    console.log('✓ Added 3 sample users');
+    const toolCount = await get('SELECT COUNT(*) as count FROM tools');
+    if (toolCount.count === 0) {
+        await run('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)', ['Drill', 'Electric power drill', 'Power Tools', 3, 'Storage A']);
+        await run('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)', ['Hammer', 'Claw hammer', 'Hand Tools', 5, 'Storage A']);
+        await run('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)', ['Saw', 'Hand saw', 'Hand Tools', 2, 'Storage B']);
+        await run('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)', ['Ladder', 'Aluminum ladder', 'Access Equipment', 1, 'Storage C']);
+        await run('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)', ['Screwdriver Set', 'Multi-bit screwdriver set', 'Hand Tools', 4, 'Storage A']);
+        console.log('✓ Added 5 sample tools\n');
+    } else {
+        console.log('✓ Tools already exist, skipped sample tools\n');
+    }
 
-    db.prepare('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)').run('Drill', 'Electric power drill', 'Power Tools', 3, 'Storage A');
-    db.prepare('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)').run('Hammer', 'Claw hammer', 'Hand Tools', 5, 'Storage A');
-    db.prepare('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)').run('Saw', 'Hand saw', 'Hand Tools', 2, 'Storage B');
-    db.prepare('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)').run('Ladder', 'Aluminum ladder', 'Access Equipment', 1, 'Storage C');
-    db.prepare('INSERT INTO tools (name, description, category, quantity_available, location) VALUES (?, ?, ?, ?, ?)').run('Screwdriver Set', 'Multi-bit screwdriver set', 'Hand Tools', 4, 'Storage A');
+    const columns = await new Promise((resolve, reject) => {
+        db.all('PRAGMA table_info(tools)', (error, rows) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve(rows);
+        });
+    });
 
-    console.log('✓ Added 5 sample tools\n');
+    if (!columns.some(column => column.name === 'deleted_at')) {
+        await exec('ALTER TABLE tools ADD COLUMN deleted_at TEXT');
+    }
+
+    console.log('✓ Added sample data where needed\n');
 
     db.close();
 
@@ -84,7 +132,10 @@ try {
     console.log('Ready to start the server:');
     console.log('   npm start\n');
 
-} catch (error) {
+    } catch (error) {
     console.error('❌ Database setup failed:', error.message);
     process.exit(1);
+    }
 }
+
+setupDatabase();

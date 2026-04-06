@@ -1,4 +1,4 @@
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -40,7 +40,7 @@ module.exports = async function handler(req, res) {
     const tools = db.collection('tools');
 
     if (req.method === 'GET') {
-      const allTools = await tools.find({}).toArray();
+      const allTools = await tools.find({ deleted_at: { $exists: false } }).toArray();
       const normalizedTools = allTools.map((tool) => ({
         ...tool,
         tool_id: tool._id.toString()
@@ -67,6 +67,25 @@ module.exports = async function handler(req, res) {
         quantity_available,
         location
       });
+    }
+
+    if (req.method === 'DELETE') {
+      const { id } = req.query;
+
+      if (!id) {
+        return res.status(400).json({ error: 'Tool id is required' });
+      }
+
+      const result = await tools.updateOne(
+        { _id: new ObjectId(id), deleted_at: { $exists: false } },
+        { $set: { deleted_at: new Date() } }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ error: 'Tool not found' });
+      }
+
+      return res.status(200).json({ message: 'Tool removed from inventory' });
     }
 
     res.status(405).json({ error: 'Method not allowed' });

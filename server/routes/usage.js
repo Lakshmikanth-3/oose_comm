@@ -1,17 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const { all, get, run } = require('../db');
 
 // Get all usage records
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const rows = db.prepare(`
+    const rows = await all(`
       SELECT u.*, t.name as tool_name, us.name as user_name 
       FROM usage u
       JOIN tools t ON u.tool_id = t.tool_id
       JOIN users us ON u.user_id = us.user_id
       ORDER BY u.borrow_date DESC
-    `).all();
+    `);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -19,30 +19,29 @@ router.get('/', (req, res) => {
 });
 
 // Borrow tool
-router.post('/borrow', (req, res) => {
+router.post('/borrow', async (req, res) => {
   const { user_id, tool_id, borrow_date, expected_return_date } = req.body;
   try {
-    const result = db.prepare(`
+    const result = await run(`
       INSERT INTO usage (user_id, tool_id, borrow_date, expected_return_date, status) 
       VALUES (?, ?, ?, ?, 'borrowed')
-    `).run(user_id, tool_id, borrow_date, expected_return_date);
+    `, [user_id, tool_id, borrow_date, expected_return_date]);
     
     // Update tool quantity
-    db.prepare('UPDATE tools SET quantity_available = quantity_available - 1 WHERE tool_id = ?')
-      .run(tool_id);
+    await run('UPDATE tools SET quantity_available = quantity_available - 1 WHERE tool_id = ?', [tool_id]);
     
-    res.status(201).json({ usage_id: result.lastInsertRowid, message: 'Tool borrowed successfully' });
+    res.status(201).json({ usage_id: result.lastID, message: 'Tool borrowed successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // Return tool
-router.put('/return/:usage_id', (req, res) => {
+router.put('/return/:usage_id', async (req, res) => {
   const { return_date, rating, review } = req.body;
   try {
     // Get usage record to find tool_id
-    const usage = db.prepare('SELECT * FROM usage WHERE usage_id = ?').get(req.params.usage_id);
+    const usage = await get('SELECT * FROM usage WHERE usage_id = ?', [req.params.usage_id]);
     
     if (!usage) {
       return res.status(404).json({ error: 'Usage record not found' });
@@ -51,13 +50,12 @@ router.put('/return/:usage_id', (req, res) => {
     const tool_id = usage.tool_id;
     
     // Update usage record
-    db.prepare(`
+    await run(`
       UPDATE usage SET return_date = ?, status = 'returned', rating = ?, review = ? WHERE usage_id = ?
-    `).run(return_date, rating, review, req.params.usage_id);
+    `, [return_date, rating, review, req.params.usage_id]);
     
     // Update tool quantity
-    db.prepare('UPDATE tools SET quantity_available = quantity_available + 1 WHERE tool_id = ?')
-      .run(tool_id);
+    await run('UPDATE tools SET quantity_available = quantity_available + 1 WHERE tool_id = ?', [tool_id]);
     
     res.json({ message: 'Tool returned successfully' });
   } catch (error) {
@@ -66,15 +64,15 @@ router.put('/return/:usage_id', (req, res) => {
 });
 
 // Get usage history for a user
-router.get('/user/:user_id', (req, res) => {
+router.get('/user/:user_id', async (req, res) => {
   try {
-    const rows = db.prepare(`
+    const rows = await all(`
       SELECT u.*, t.name as tool_name 
       FROM usage u
       JOIN tools t ON u.tool_id = t.tool_id
       WHERE u.user_id = ?
       ORDER BY u.borrow_date DESC
-    `).all(req.params.user_id);
+    `, [req.params.user_id]);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -82,15 +80,15 @@ router.get('/user/:user_id', (req, res) => {
 });
 
 // Get tool ratings
-router.get('/tool/:tool_id/ratings', (req, res) => {
+router.get('/tool/:tool_id/ratings', async (req, res) => {
   try {
-    const rows = db.prepare(`
+    const rows = await all(`
       SELECT u.rating, u.review, us.name as user_name, u.return_date
       FROM usage u
       JOIN users us ON u.user_id = us.user_id
       WHERE u.tool_id = ? AND u.rating IS NOT NULL
       ORDER BY u.return_date DESC
-    `).all(req.params.tool_id);
+    `, [req.params.tool_id]);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });

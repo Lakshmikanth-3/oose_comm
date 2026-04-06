@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const { all, get, run } = require('../db');
 
 // Get all users
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM users').all();
+    const rows = await all('SELECT * FROM users');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -13,9 +13,9 @@ router.get('/', (req, res) => {
 });
 
 // Get user by ID
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const row = db.prepare('SELECT * FROM users WHERE user_id = ?').get(req.params.id);
+    const row = await get('SELECT * FROM users WHERE user_id = ?', [req.params.id]);
     if (!row) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -26,26 +26,28 @@ router.get('/:id', (req, res) => {
 });
 
 // Create user
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { name, email, phone } = req.body;
   try {
-    const result = db.prepare(
-      'INSERT INTO users (name, email, phone) VALUES (?, ?, ?)'
-    ).run(name, email, phone);
+    const result = await run(
+      'INSERT INTO users (name, email, phone) VALUES (?, ?, ?)',
+      [name, email, phone]
+    );
     
-    res.status(201).json({ user_id: result.lastInsertRowid, name, email, phone });
+    res.status(201).json({ user_id: result.lastID, name, email, phone });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // Update user
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { name, email, phone } = req.body;
   try {
-    db.prepare(
-      'UPDATE users SET name = ?, email = ?, phone = ? WHERE user_id = ?'
-    ).run(name, email, phone, req.params.id);
+    await run(
+      'UPDATE users SET name = ?, email = ?, phone = ? WHERE user_id = ?',
+      [name, email, phone, req.params.id]
+    );
     
     res.json({ message: 'User updated successfully' });
   } catch (error) {
