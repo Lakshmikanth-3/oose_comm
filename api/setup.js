@@ -20,17 +20,19 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const client = new MongoClient(MONGODB_URI);
+    const client = new MongoClient(MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
+      socketTimeoutMS: 10000
+    });
     await client.connect();
     const db = client.db('community_tools');
 
-    // Create collections
-    const collections = await db.listCollections().toArray();
-    const collectionNames = collections.map(c => c.name);
+    const users = db.collection('users');
+    const tools = db.collection('tools');
+    const usage = db.collection('usage');
 
-    if (!collectionNames.includes('users')) {
-      await db.createCollection('users');
-      const users = db.collection('users');
+    if (await users.estimatedDocumentCount() === 0) {
       await users.insertMany([
         { name: 'John Doe', email: 'john@example.com', phone: '555-0001', created_at: new Date() },
         { name: 'Jane Smith', email: 'jane@example.com', phone: '555-0002', created_at: new Date() },
@@ -38,9 +40,7 @@ module.exports = async function handler(req, res) {
       ]);
     }
 
-    if (!collectionNames.includes('tools')) {
-      await db.createCollection('tools');
-      const tools = db.collection('tools');
+    if (await tools.estimatedDocumentCount() === 0) {
       await tools.insertMany([
         { name: 'Drill', description: 'Electric power drill', category: 'Power Tools', quantity_available: 3, location: 'Storage A', created_at: new Date() },
         { name: 'Hammer', description: 'Claw hammer', category: 'Hand Tools', quantity_available: 5, location: 'Storage A', created_at: new Date() },
@@ -50,8 +50,8 @@ module.exports = async function handler(req, res) {
       ]);
     }
 
-    if (!collectionNames.includes('usage')) {
-      await db.createCollection('usage');
+    if (await usage.estimatedDocumentCount() === 0) {
+      await usage.createIndex({ user_id: 1, tool_id: 1, borrow_date: -1 });
     }
 
     await client.close();

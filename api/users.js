@@ -13,7 +13,11 @@ async function connectToDatabase() {
     return cachedClient;
   }
 
-  const client = new MongoClient(MONGODB_URI);
+  const client = new MongoClient(MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 5000,
+    socketTimeoutMS: 10000
+  });
   await client.connect();
   cachedClient = client;
   return client;
