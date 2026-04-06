@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "npm install",
+  "public": true,
+  "env": {
+    "MONGODB_URI": "@mongodb_uri"
+  },
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 30
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "community-tool-system",
+  "version": "1.0.0",
+  "description": "Community Tool Support System",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/app.js",
+    "dev": "nodemon server/app.js",
+    "setup": "node setup.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "mongodb": "^7.1.1",
+    "mysql2": "^3.6.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
