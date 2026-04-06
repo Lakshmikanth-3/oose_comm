@@ -1,4 +1,4 @@
-import { MongoClient } from 'mongodb';
+const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -19,7 +19,7 @@ async function connectToDatabase() {
   return client;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -37,7 +37,11 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const allTools = await tools.find({}).toArray();
-      return res.status(200).json(allTools);
+      const normalizedTools = allTools.map((tool) => ({
+        ...tool,
+        tool_id: tool._id.toString()
+      }));
+      return res.status(200).json(normalizedTools);
     }
 
     if (req.method === 'POST') {
@@ -52,6 +56,7 @@ export default async function handler(req, res) {
       });
       return res.status(201).json({
         _id: result.insertedId,
+        tool_id: result.insertedId.toString(),
         name,
         description,
         category,

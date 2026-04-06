@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -334,17 +334,9 @@ async function loadRatings() {
     const toolId = document.getElementById('ratingToolSelect').value;
     
     try {
-        let url = `${API_BASE}/usage`;
-        if (toolId) {
-            url = `${API_BASE}/usage/tool/${toolId}/ratings`;
-        } else {
-            // Get all ratings
-            const response = await fetch(url);
-            const allUsages = await response.json();
-            const ratingsWithTool = allUsages.filter(u => u.rating !== null);
-            displayRatings(ratingsWithTool);
-            return;
-        }
+        const url = toolId
+            ? `${API_BASE}/usage?tool_id=${toolId}&ratings=1`
+            : `${API_BASE}/usage?ratings=1`;
 
         const response = await fetch(url);
         const ratings = await response.json();

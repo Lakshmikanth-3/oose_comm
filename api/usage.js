@@ -1,4 +1,4 @@
-import { MongoClient } from 'mongodb';
+const { MongoClient, ObjectId } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -19,7 +19,7 @@ async function connectToDatabase() {
   return client;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -38,7 +38,25 @@ export default async function handler(req, res) {
     const users = db.collection('users');
 
     if (req.method === 'GET') {
-      const allUsage = await usage.aggregate([
+      const toolId = req.query.tool_id;
+      const userId = req.query.user_id;
+      const onlyRatings = req.query.ratings === '1';
+
+      const pipeline = [];
+
+      if (onlyRatings) {
+        pipeline.push({ $match: { rating: { $ne: null } } });
+      }
+
+      if (toolId) {
+        pipeline.push({ $match: { tool_id: new ObjectId(toolId) } });
+      }
+
+      if (userId) {
+        pipeline.push({ $match: { user_id: new ObjectId(userId) } });
+      }
+
+      pipeline.push(
         {
           $lookup: {
             from: 'tools',
@@ -62,8 +80,16 @@ export default async function handler(req, res) {
           }
         },
         { $sort: { borrow_date: -1 } }
-      ]).toArray();
-      return res.status(200).json(allUsage);
+      );
+
+      const allUsage = await usage.aggregate(pipeline).toArray();
+      const normalizedUsage = allUsage.map((item) => ({
+        ...item,
+        usage_id: item._id.toString(),
+        user_id: item.user_id?.toString?.() ?? item.user_id,
+        tool_id: item.tool_id?.toString?.() ?? item.tool_id
+      }));
+      return res.status(200).json(normalizedUsage);
     }
 
     if (req.method === 'POST') {
@@ -71,10 +97,12 @@ export default async function handler(req, res) {
       
       if (action === 'borrow') {
         const { user_id, tool_id, borrow_date, expected_return_date } = req.body;
+        const userObjectId = new ObjectId(user_id);
+        const toolObjectId = new ObjectId(tool_id);
         
         const result = await usage.insertOne({
-          user_id: user_id,
-          tool_id: tool_id,
+          user_id: userObjectId,
+          tool_id: toolObjectId,
           borrow_date: new Date(borrow_date),
           expected_return_date: new Date(expected_return_date),
           status: 'borrowed',
@@ -83,26 +111,28 @@ export default async function handler(req, res) {
 
         // Update tool quantity
         await tools.updateOne(
-          { _id: tool_id },
+          { _id: toolObjectId },
           { $inc: { quantity_available: -1 } }
         );
 
         return res.status(201).json({
           _id: result.insertedId,
+          usage_id: result.insertedId.toString(),
           message: 'Tool borrowed successfully'
         });
       }
 
       if (action === 'return') {
         const { usage_id, return_date, rating, review } = req.body;
+        const usageObjectId = new ObjectId(usage_id);
         
-        const usageRecord = await usage.findOne({ _id: usage_id });
+        const usageRecord = await usage.findOne({ _id: usageObjectId });
         if (!usageRecord) {
           return res.status(404).json({ error: 'Usage record not found' });
         }
 
         await usage.updateOne(
-          { _id: usage_id },
+          { _id: usageObjectId },
           {
             $set: {
               return_date: new Date(return_date),

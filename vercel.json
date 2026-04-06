@@ -1,10 +1,10 @@
 {
   "version": 2,
-  "buildCommand": "npm install",
-  "public": true,
-  "env": {
-    "MONGODB_URI": "@mongodb_uri"
-  },
+  "rewrites": [
+    { "source": "/", "destination": "/public/index.html" },
+    { "source": "/css/:path*", "destination": "/public/css/:path*" },
+    { "source": "/js/:path*", "destination": "/public/js/:path*" }
+  ],
   "functions": {
     "api/**/*.js": {
       "maxDuration": 30

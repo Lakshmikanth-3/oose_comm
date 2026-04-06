@@ -28,7 +28,8 @@ git push -u origin main
 3. Import your GitHub repository
 4. Add environment variable:
    - Name: `MONGODB_URI`
-   - Value: Your MongoDB connection string
+   - Value: Paste your full MongoDB connection string directly
+   - Do **not** choose "Reference Secret" unless you have already created a secret with that exact name
 5. Click "Deploy"
 
 ### Step 4: Initialize Database
@@ -56,6 +57,18 @@ Open: `https://your-deployment.vercel.app`
 ```
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/community_tools
 ```
+
+## If Vercel shows "references Secret \"mongodb_uri\", which does not exist"
+
+That means the variable was created as a secret reference instead of a plain environment variable.
+
+Fix it by:
+1. Opening your Vercel project → Settings → Environment Variables
+2. Deleting the broken `MONGODB_URI` entry
+3. Adding it again as a normal variable with the MongoDB URI pasted directly
+4. Redeploying the project
+
+If you really want to use a secret, create a secret named `mongodb_uri` first and then reference it, but a plain environment variable is simpler.
 
 ## Troubleshooting
 

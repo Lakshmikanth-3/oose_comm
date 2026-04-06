@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Tool Support System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1>🔧 Community Tool Support System</h1>
+            <ul class="nav-links">
+                <li><a href="#inventory" onclick="showSection('inventory')">Inventory</a></li>
+                <li><a href="#calendar" onclick="showSection('calendar')">Availability</a></li>
+                <li><a href="#tracking" onclick="showSection('tracking')">Tracking</a></li>
+                <li><a href="#ratings" onclick="showSection('ratings')">Ratings</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container main-content">
+        <section id="inventory" class="section active">
+            <h2>Tool Inventory</h2>
+            <div class="action-buttons">
+                <button onclick="openAddToolModal()" class="btn btn-primary">+ Add Tool</button>
+            </div>
+            <table class="inventory-table">
+                <thead>
+                    <tr>
+                        <th>Tool ID</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Available</th>
+                        <th>Location</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryTable">
+                    <tr><td colspan="7">Loading...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="calendar" class="section">
+            <h2>Tool Availability Calendar</h2>
+            <div class="calendar-controls">
+                <select id="toolSelect" onchange="updateCalendar()">
+                    <option value="">Select a tool...</option>
+                </select>
+            </div>
+            <div id="calendarContainer" class="calendar-container">
+                <div class="calendar-placeholder">Select a tool to view availability</div>
+            </div>
+            <div id="usageList" class="usage-list"></div>
+        </section>
+
+        <section id="tracking" class="section">
+            <h2>Borrow/Return Tracking</h2>
+            <div class="action-buttons">
+                <button onclick="openBorrowModal()" class="btn btn-primary">+ Borrow Tool</button>
+            </div>
+            <table class="tracking-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Tool</th>
+                        <th>Borrow Date</th>
+                        <th>Expected Return</th>
+                        <th>Return Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="trackingTable">
+                    <tr><td colspan="7">Loading...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="ratings" class="section">
+            <h2>Tool Ratings & Reviews</h2>
+            <div class="ratings-container">
+                <div class="ratings-filter">
+                    <select id="ratingToolSelect" onchange="loadRatings()">
+                        <option value="">All Tools</option>
+                    </select>
+                </div>
+                <div id="ratingsGrid" class="ratings-grid">
+                    <div class="rating-placeholder">Loading ratings...</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div id="addToolModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addToolModal')">&times;</span>
+            <h2>Add New Tool</h2>
+            <form onsubmit="saveTool(event)">
+                <input type="text" id="toolName" placeholder="Tool Name" required>
+                <textarea id="toolDescription" placeholder="Description"></textarea>
+                <input type="text" id="toolCategory" placeholder="Category" required>
+                <input type="number" id="toolQuantity" placeholder="Quantity" value="1" required>
+                <input type="text" id="toolLocation" placeholder="Location" required>
+                <button type="submit" class="btn btn-primary">Add Tool</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="borrowModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('borrowModal')">&times;</span>
+            <h2>Borrow Tool</h2>
+            <form onsubmit="borrowTool(event)">
+                <select id="borrowUserId" required>
+                    <option value="">Select User</option>
+                </select>
+                <select id="borrowToolId" required>
+                    <option value="">Select Tool</option>
+                </select>
+                <input type="date" id="borrowDate" required>
+                <input type="date" id="expectedReturnDate" required>
+                <button type="submit" class="btn btn-primary">Borrow Tool</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="returnModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('returnModal')">&times;</span>
+            <h2>Return Tool</h2>
+            <form onsubmit="returnTool(event)">
+                <input type="hidden" id="returnUsageId">
+                <input type="date" id="returnDate" required>
+                <select id="toolRating" required>
+                    <option value="">Rate the tool (1-5)</option>
+                    <option value="5">⭐⭐⭐⭐⭐ Excellent</option>
+                    <option value="4">⭐⭐⭐⭐ Good</option>
+                    <option value="3">⭐⭐⭐ Average</option>
+                    <option value="2">⭐⭐ Poor</option>
+                    <option value="1">⭐ Very Poor</option>
+                </select>
+                <textarea id="toolReview" placeholder="Write a review (optional)"></textarea>
+                <button type="submit" class="btn btn-primary">Return Tool</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/script.js"></script>
+</body>
+</html>

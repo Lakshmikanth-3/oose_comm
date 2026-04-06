@@ -1,5 +1,4 @@
-import { MongoClient } from 'mongodb';
-import { ObjectId } from 'mongodb';
+const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -7,7 +6,7 @@ if (!MONGODB_URI) {
   throw new Error('Please add MONGODB_URI to environment variables');
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
 

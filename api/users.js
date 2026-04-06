@@ -1,4 +1,4 @@
-import { MongoClient } from 'mongodb';
+const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -19,7 +19,7 @@ async function connectToDatabase() {
   return client;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -37,7 +37,11 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const allUsers = await users.find({}).toArray();
-      return res.status(200).json(allUsers);
+      const normalizedUsers = allUsers.map((user) => ({
+        ...user,
+        user_id: user._id.toString()
+      }));
+      return res.status(200).json(normalizedUsers);
     }
 
     if (req.method === 'POST') {
@@ -50,6 +54,7 @@ export default async function handler(req, res) {
       });
       return res.status(201).json({
         _id: result.insertedId,
+        user_id: result.insertedId.toString(),
         name,
         email,
         phone
